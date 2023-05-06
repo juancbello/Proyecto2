@@ -11,20 +11,24 @@ from pgmpy.estimators import MaximumLikelihoodEstimator, BayesianEstimator
 from pgmpy.inference import VariableElimination
 import pandas as pd
 import plotly.express as px
+import psycopg2
 
+# ------------------------- Cargar base de datos -------------------------
 
-# ------------------------- Cargar datos -------------------------
+HOST = 'heart.cejvodvrmsa6.us-east-1.rds.amazonaws.com' # Punto de enlace
+PORT = 5432 # Puerto
+USER = 'postgres' # Usuario
+PASSWORD = '123contra' # Contraseña
+DB_NAME = 'postgres' # Nombre de la base de datos
 
-# Cargamos los datos del archivo 
-url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data'
-df = pd.read_csv(url, names=["age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal", "num"], na_values='?')
+# Conectarse a la base de datos
+engine = psycopg2.connect(host=HOST, port=PORT, user=USER, password=PASSWORD, dbname=DB_NAME)
+# Leer la tabla "heart_disease" en un DataFrame
+df = pd.read_sql_query('SELECT * FROM heart_disease', engine)
+# Cerrar la conexión
+engine.close()
 
-#ver si cada columna tiene caracteres no numericos
-df.apply(lambda x: sum(x.apply(type) == str), axis=0)
-#Pasar todos los valores a numericos
-df = df.apply(pd.to_numeric, errors='coerce')
-#Eliminar las filas con valores nulos
-df = df.dropna()
+# ------------------------- Tratamiento de datos -------------------------
 
 df['age'], binage = pd.cut(df['age'], 10, retbins=True, labels = np.arange(10))
 df['trestbps'], bintrestbps = pd.cut(df['trestbps'], 10, retbins=True, labels = np.arange(10))
@@ -107,6 +111,10 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=True)
 
 # Contenido de las pestañas
+
+# ------------------------- tab 1 -------------------------
+#******* Aqui se debe agregar las gráficas***********
+
 tab1_content = html.Div([
     html.H1('Bienvenido al aplicativo de detección de enfermedad cardíaca'),
     html.P('Por favor seleccione una pestaña para continuar'),
