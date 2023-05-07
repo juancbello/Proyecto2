@@ -25,6 +25,7 @@ DB_NAME = 'postgres' # Nombre de la base de datos
 engine = psycopg2.connect(host=HOST, port=PORT, user=USER, password=PASSWORD, dbname=DB_NAME)
 # Leer la tabla "heart_disease" en un DataFrame
 df = pd.read_sql_query('SELECT * FROM heart_disease', engine)
+df_graph = df.copy()
 # Cerrar la conexión
 engine.close()
 
@@ -104,6 +105,70 @@ def bayesian_inference_tp(sex, cp, thalach, exang, oldpeak, slope, ca, thal):
     q = infer2.query(['num'], evidence=evidence)
 
     return q
+
+#---------------------------------------------------------------GRAFICAS-------------------------------------------------------------------------------------------------------------------------
+
+# GRAFICA UNO SEXO Y EDAD
+
+# Crear una columna 'disease' con valores binarios indicando si cada paciente tiene o no enfermedad cardiaca
+df_graph['disease'] = df_graph['num'].apply(lambda x: 1 if x > 0 else 0)
+# Agrupar los datos por edad y calcular la proporción de pacientes con enfermedad cardiaca en cada grupo
+age_counts = df_graph.groupby('age')['disease'].agg(['count', 'sum'])
+age_counts['proportion'] = age_counts['sum'] / age_counts['count']
+# Crear gráfico de barras para las edades 
+fig = px.bar(age_counts, x=age_counts.index, y='count', title='Número de pacientes con enfermedad cardiaca por edad',
+             labels={'x': 'Edad', 'y': 'Número de pacientes'})
+# Multiplicar por el total de pacientes la proporción de pacientes con enfermedad cardiaca para cada edad
+fig.add_scatter(x=age_counts.index, y=age_counts['proportion'] * age_counts['count'], name='Pacientes con enfermedad cardiaca',
+                line=dict(color='red', width=4))
+# Cambiar el color de las barras a un tono azul más claro
+fig.update_traces(marker_color='blue', marker_line_color='darkblue', marker_line_width=1, opacity=0.7)
+# Ajustar el ancho de las barras
+fig.update_layout(bargap=0.1, bargroupgap=0.05)
+# Agregar leyenda
+fig.update_layout(legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1))
+# Cambiar tipo de letra y tamaño
+fig.update_layout(font=dict(family='Arial', size=14))
+# Cambiar las leyendas de los ejes
+fig.update_layout(xaxis_title='Edad', yaxis_title='Número de pacientes')
+
+
+fig1 = px.histogram(df_graph[df_graph['num'] != 0], x='age', color='sex', barmode='group', marginal='box', nbins=20,
+                    labels={'age': 'Age', 'num': 'Num', 'sex': 'Sex'}, color_discrete_map={0: 'pink', 1: 'blue'},
+                    category_orders={"sex": [1,0]}, 
+                    title="Distribución de enfermedad cardiaca por sexo y edad")
+
+fig1.update_traces(marker_line_width=0, opacity=0.75, hovertemplate=None)
+fig1.update_layout(legend_title="Sex", legend=dict(title_font=dict(size=14), font=dict(size=12)))
+
+
+
+# GRAFICA DOS
+# GRAFICA SIGNOS VITALES
+fig2 = px.scatter_matrix(df_graph, dimensions=['fbs', 'chol', 'trestbps'], color='num', opacity=0.7,
+                         labels={'fbs': 'Fasting Blood Sugar', 'chol': 'Cholesterol', 'trestbps': 'Resting Blood Pressure', 'num': 'Num'})
+
+# Arreglar el tamaño de las gráficas
+fig2.update_layout(height=600, width=2000)
+
+
+# GRAFICA ANGINAL
+
+fig3 = px.histogram(df_graph, x='cp', color='exang', barmode='group', nbins=5,
+                    labels={'cp': 'Chest Pain Type', 'num': 'Num', 'exang': 'Exercise Induced Angina'})
+
+# Agregar leyenda
+fig3.update_layout(legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1))
+# Cambiar tipo de letra y tamaño
+fig3.update_layout(font=dict(family='Arial', size=14))
+# Cambiar las leyendas de los ejes
+fig3.update_layout(xaxis_title='Tipo de dolor de pecho', yaxis_title='Número de pacientes')
+# Cambiar la leyenda de exang por si o no
+fig3.update_layout(legend_title="Angina inducida por ejercicio", legend=dict(title_font=dict(size=14), font=dict(size=12), itemsizing='constant'))
+# En vez de 0 y 1, poner si y no
+fig3.update_layout(xaxis=dict(tickmode='array', tickvals=[1, 2, 3, 4], ticktext=['Tipo 1', 'Tipo 2', 'Tipo 3', 'Tipo 4']))
+
+
 # ------------------------- Diseño de la app -------------------------
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -113,15 +178,30 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_ca
 # Contenido de las pestañas
 
 # ------------------------- tab 1 -------------------------
-#******* Aqui se debe agregar las gráficas***********
-
+# Contenido de las pestañas
 tab1_content = html.Div([
     html.H1('Bienvenido al aplicativo de detección de enfermedad cardíaca'),
-    html.P('Por favor seleccione una pestaña para continuar'),
     html.Br(),
-    dcc.Link('Ir a la pestaña de test rápido', href='/tab-1'),
+    html.P('Queremos mostrale datos que pueden ser de su interés antes de realizar el test de enfermedad cardíaca.'),
     html.Br(),
-    dcc.Link('Ir a la pestaña de test preciso', href='/tab-2'),
+    html.P('En el siguiente grafico, realizamos un conteo de personas que padecen de complicaciones cardiaca. La personas se encuentran agrupadas por edad'),
+    html.Br(),  
+    dcc.Graph(id='graph1', figure=fig),
+    html.P('En el siguiente grafico podemos comparar los signos vitales de los pacientes con la existencia de un diagnostico(color amarillo). Los datos utilizados son: colesterol, azucar en ayunas y presion arterial.'),
+    html.Br(), 
+    html.P('Es importante tener en cuenta que las variable FBS toma el valor de 1 si los niveles de azucar estan fuera de lo normal. A si mismo, el colesterol y la presion arterial, se encuentran divididos en 10 intervalos de la misma proporcion.'),  
+    html.Br(), 
+    dcc.Graph(id='graph2', figure=fig2),
+    html.Br(),   
+    html.P('En esta ultima visualizacion, podemos observar la cuenta de los pacientes diagnosticados con enfermedades cardiacas agrupados por tipo de angina y si presentan o no angina inducida por ejercicio.'),
+    html.Br(), 
+    html.P('Es importante tener en cuenta que los valores numericos de angina son:'),   
+    html.Br(), 
+    html.P('              1: Angina típica.'),
+    html.P('              2: Angina atípica.'),
+    html.P('              3: Dolor no anginal.'),
+    html.P('              4: Asintomatico.'),
+    dcc.Graph(id='graph3', figure=fig3)
 ])
 
 # ------------------------- tab 2 -------------------------
